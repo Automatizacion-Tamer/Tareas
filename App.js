@@ -282,7 +282,7 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(22);
     doc.setTextColor(67, 56, 202); // Indigo 700
-    doc.text("Automatización Industrial", 105, 20, { align: "center" });
+    doc.text("OFICINA AUTOMATIZACION", 105, 20, { align: "center" });
     
     doc.setFontSize(14);
     doc.setTextColor(100);
