@@ -13,7 +13,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // --- CONSTANTES ---
 const Role = { ADMIN: 'ADMIN', USER: 'USER' };
 const TaskStatus = { PENDING: 'PENDING', ACCEPTED: 'ACCEPTED', COMPLETED: 'COMPLETED' };
-const VERSION = "V1.6.0";
+const VERSION = "V1.7.0";
 
 // --- UTILS ---
 const formatDuration = (ms) => {
@@ -53,7 +53,7 @@ const ConfirmModal = ({ show, title, message, onConfirm, onCancel }) => {
   if (!show) return null;
   return html`
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
-      <div className="bg-white rounded-[40px] w-full max-sm shadow-2xl p-10 animate-fade-in-up">
+      <div className="bg-white rounded-[40px] w-full max-w-sm shadow-2xl p-10 animate-fade-in-up">
         <h2 className="text-xl font-black mb-4 uppercase text-slate-800">${title}</h2>
         <p className="text-sm text-slate-500 mb-8">${message}</p>
         <div className="flex gap-3">
@@ -227,6 +227,7 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
   
   const [userForm, setUserForm] = useState({ username: '', password: '', role: Role.USER });
   const [taskForm, setTaskForm] = useState({ title: '', description: '', assigned_to: '', estimated_time: 1 });
+  const [editingAdminNote, setEditingAdminNote] = useState({ index: null, text: '' });
   const fileInputRef = useRef(null);
 
   const userStats = useMemo(() => {
@@ -259,12 +260,46 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
   const saveTask = async (e) => {
     e.preventDefault();
     try {
-      const { data, error } = await supabase.from('tasks').insert([{ ...taskForm, status: TaskStatus.PENDING, progress_notes: '[]', efficiency: 100 }]).select();
-      if (error) throw error;
-      setTasks([data[0], ...tasks]);
-      notify('Obra registrada', 'success');
+      if (modalTask.mode === 'edit') {
+        const { data, error } = await supabase.from('tasks').update(taskForm).eq('id', modalTask.data.id).select();
+        if (error) throw error;
+        setTasks(tasks.map(t => t.id === modalTask.data.id ? data[0] : t));
+        notify('Obra actualizada', 'success');
+      } else {
+        const { data, error } = await supabase.from('tasks').insert([{ ...taskForm, status: TaskStatus.PENDING, progress_notes: '[]', efficiency: 100 }]).select();
+        if (error) throw error;
+        setTasks([data[0], ...tasks]);
+        notify('Obra registrada', 'success');
+      }
       setModalTask({ show: false });
     } catch (err) { notify('Error DB: ' + err.message, 'error'); }
+  };
+
+  const deleteAdminNote = async (task, index) => {
+    confirm('¿Eliminar nota?', 'Esta acción borrará el registro de la bitácora permanentemente.', async () => {
+      let notes = []; try { notes = JSON.parse(task.progress_notes || '[]'); } catch(e) {}
+      notes.splice(index, 1);
+      const { data, error } = await supabase.from('tasks').update({ progress_notes: JSON.stringify(notes) }).eq('id', task.id).select();
+      if (!error && data) {
+        setTasks(tasks.map(t => t.id === task.id ? data[0] : t));
+        setModalNotes({ ...modalNotes, task: data[0] });
+        notify('Nota eliminada', 'success');
+      }
+    });
+  };
+
+  const updateAdminNote = async (task) => {
+    let notes = []; try { notes = JSON.parse(task.progress_notes || '[]'); } catch(e) {}
+    if (notes[editingAdminNote.index]) {
+      notes[editingAdminNote.index].text = editingAdminNote.text;
+      const { data, error } = await supabase.from('tasks').update({ progress_notes: JSON.stringify(notes) }).eq('id', task.id).select();
+      if (!error && data) {
+        setTasks(tasks.map(t => t.id === task.id ? data[0] : t));
+        setModalNotes({ ...modalNotes, task: data[0] });
+        setEditingAdminNote({ index: null, text: '' });
+        notify('Nota corregida', 'success');
+      }
+    }
   };
 
   const updateSetting = async (day, field, value) => {
@@ -278,10 +313,9 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
     const doc = new jsPDF();
     const dateStr = new Date().toLocaleString();
     
-    // Configuración estética del PDF
     doc.setFont("helvetica", "bold");
     doc.setFontSize(22);
-    doc.setTextColor(67, 56, 202); // Indigo 700
+    doc.setTextColor(67, 56, 202); 
     doc.text("OFICINA AUTOMATIZACION", 105, 20, { align: "center" });
     
     doc.setFontSize(14);
@@ -298,7 +332,6 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
     let y = 55;
 
     tasks.forEach((t, index) => {
-      // Nueva página si se acaba el espacio
       if (y > 250) {
         doc.addPage();
         y = 20;
@@ -309,7 +342,6 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
         ? formatDuration(new Date(t.completed_at) - new Date(t.accepted_at))
         : 'En curso';
       
-      // Bloque de Tarea
       doc.setFillColor(248, 250, 252);
       doc.rect(20, y, 170, 35, 'F');
       
@@ -332,7 +364,6 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
       
       y += 42;
 
-      // Bitácora de Notas
       let notes = []; 
       try { notes = JSON.parse(t.progress_notes || '[]'); } catch(e) {}
       
@@ -429,8 +460,9 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
                         </div>
                       </div>
                       <div className="flex gap-2">
-                        <button onClick=${() => setModalNotes({show:true, task:t})} className="text-slate-300 hover:text-indigo-600 transition-colors"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></button>
-                        <button onClick=${() => confirm('¿Borrar obra?', 'Esta acción no se puede deshacer.', async () => { await supabase.from('tasks').delete().eq('id', t.id); setTasks(tasks.filter(x => x.id !== t.id)); notify('Obra eliminada', 'success'); })} className="text-slate-300 hover:text-red-500 transition-colors"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                        <button onClick=${() => setModalNotes({show:true, task:t})} title="Ver Bitácora" className="text-slate-300 hover:text-indigo-600 transition-colors"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></button>
+                        <button onClick=${() => { setTaskForm({title:t.title, description:t.description, assigned_to:t.assigned_to, estimated_time: t.estimated_time}); setModalTask({show:true, mode:'edit', data:t}); }} title="Editar Obra" className="text-slate-300 hover:text-blue-500 transition-colors"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2.5" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg></button>
+                        <button onClick=${() => confirm('¿Borrar obra?', 'Esta acción no se puede deshacer.', async () => { await supabase.from('tasks').delete().eq('id', t.id); setTasks(tasks.filter(x => x.id !== t.id)); notify('Obra eliminada', 'success'); })} title="Borrar" className="text-slate-300 hover:text-red-500 transition-colors"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
                       </div>
                     </div>
                     <p className="text-[11px] text-slate-500 line-clamp-2 h-8 italic">${t.description}</p>
@@ -542,7 +574,7 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
       ${modalTask.show && html`
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-[40px] w-full max-w-md shadow-2xl p-10 animate-fade-in-up">
-            <h2 className="text-2xl font-black mb-8 italic uppercase text-indigo-700">Lanzamiento de Obra</h2>
+            <h2 className="text-2xl font-black mb-8 italic uppercase text-indigo-700">${modalTask.mode === 'edit' ? 'Modificar Obra' : 'Lanzamiento de Obra'}</h2>
             <form onSubmit=${saveTask} className="space-y-5">
               <input className="w-full bg-slate-50 p-4 rounded-2xl border border-slate-100 font-bold" placeholder="Título de la Obra" value=${taskForm.title} onChange=${e => setTaskForm({...taskForm, title: e.target.value})} required />
               <div className="grid grid-cols-2 gap-4">
@@ -555,7 +587,7 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
               <textarea className="w-full bg-slate-50 p-4 rounded-2xl border border-slate-100 min-h-[100px] text-sm leading-relaxed" placeholder="Describa el alcance detallado de la obra aquí..." value=${taskForm.description} onChange=${e => setTaskForm({...taskForm, description: e.target.value})} required />
               <div className="flex gap-3 pt-6">
                 <button type="button" onClick=${() => setModalTask({show:false})} className="flex-1 bg-slate-100 py-4 rounded-2xl font-black text-xs uppercase">Cerrar</button>
-                <button type="submit" className="flex-1 bg-indigo-600 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-lg shadow-indigo-100">Lanzar a Planta</button>
+                <button type="submit" className="flex-1 bg-indigo-600 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-lg shadow-indigo-100">${modalTask.mode === 'edit' ? 'Guardar Cambios' : 'Lanzar a Planta'}</button>
               </div>
             </form>
           </div>
@@ -565,22 +597,41 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
       ${modalNotes.show && html`
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-[40px] w-full max-w-xl shadow-2xl p-10 animate-fade-in-up">
-            <h2 className="text-xl font-black mb-2 uppercase text-indigo-700">Historial de Obra: ${modalNotes.task.title}</h2>
+            <h2 className="text-xl font-black mb-2 uppercase text-indigo-700">Bitácora de Obra: ${modalNotes.task.title}</h2>
             <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-4 custom-scrollbar mt-6">
               ${(() => {
                 let notes = []; try { notes = JSON.parse(modalNotes.task.progress_notes || '[]'); } catch(e) {}
                 if (notes.length === 0) return html`<p className="text-center text-slate-400 py-10 font-bold uppercase text-xs italic">Sin registros de avance todavía.</p>`;
                 return notes.map((n, i) => {
                   if (!n) return null;
+                  const isEditing = editingAdminNote.index === i;
                   return html`
-                  <div key=${i} className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                    <p className="text-sm text-slate-700 leading-relaxed">${n.text}</p>
-                    <div className="mt-2 text-[9px] font-black uppercase text-indigo-400 text-right font-mono">${new Date(n.date).toLocaleString()}</div>
+                  <div key=${i} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 group relative">
+                    ${isEditing ? html`
+                      <div className="space-y-3">
+                        <textarea value=${editingAdminNote.text} onChange=${e => setEditingAdminNote({ ...editingAdminNote, text: e.target.value })} className="w-full p-3 text-sm bg-white rounded-xl border border-indigo-100 outline-none" />
+                        <div className="flex gap-2">
+                          <button onClick=${() => updateAdminNote(modalNotes.task)} className="bg-indigo-600 text-white px-3 py-1 rounded-lg text-[10px] font-black uppercase">Actualizar</button>
+                          <button onClick=${() => setEditingAdminNote({ index: null, text: '' })} className="bg-slate-200 text-slate-500 px-3 py-1 rounded-lg text-[10px] font-black uppercase">Cancelar</button>
+                        </div>
+                      </div>
+                    ` : html`
+                      <${React.Fragment}>
+                        <p className="text-sm text-slate-700 leading-relaxed pr-12">${n.text}</p>
+                        <div className="mt-2 flex justify-between items-center">
+                          <div className="text-[9px] font-black uppercase text-indigo-400 font-mono">${new Date(n.date).toLocaleString()}</div>
+                          <div className="flex gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick=${() => setEditingAdminNote({ index: i, text: n.text })} className="text-blue-500 text-[10px] font-black uppercase">Editar</button>
+                            <button onClick=${() => deleteAdminNote(modalNotes.task, i)} className="text-red-500 text-[10px] font-black uppercase">Eliminar</button>
+                          </div>
+                        </div>
+                      </${React.Fragment}>
+                    `}
                   </div>
                 `});
               })()}
             </div>
-            <button onClick=${() => setModalNotes({show:false, task:null})} className="w-full mt-8 bg-slate-900 text-white py-4 rounded-2xl font-black text-xs uppercase transition-all hover:bg-slate-800">Entendido</button>
+            <button onClick=${() => setModalNotes({show:false, task:null})} className="w-full mt-8 bg-slate-900 text-white py-4 rounded-2xl font-black text-xs uppercase transition-all hover:bg-slate-800">Cerrar Historial</button>
           </div>
         </div>
       `}
@@ -591,7 +642,6 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
 // --- APLICACIÓN PRINCIPAL ---
 
 const App = () => {
-  // PERSISTENCIA: Inicializar desde localStorage
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem('automatizacion_session');
     return saved ? JSON.parse(saved) : null;
@@ -636,7 +686,6 @@ const App = () => {
           e.preventDefault();
           const user = users.find(x => x.username === e.target.u.value && x.password === e.target.p.value);
           if (user) {
-            // Guardar sesión persistente
             localStorage.setItem('automatizacion_session', JSON.stringify(user));
             setCurrentUser(user);
           } else {
