@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import htm from 'htm';
 import { createClient } from '@supabase/supabase-js';
@@ -13,7 +14,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // --- CONSTANTES ---
 const Role = { ADMIN: 'ADMIN', USER: 'USER' };
 const TaskStatus = { PENDING: 'PENDING', ACCEPTED: 'ACCEPTED', COMPLETED: 'COMPLETED' };
-const VERSION = "V1.7.0";
+const VERSION = "V1.7.1";
 
 // --- UTILS ---
 const formatDuration = (ms) => {
@@ -680,7 +681,7 @@ const App = () => {
   
   if (!currentUser) return html`
     <div className="h-screen flex items-center justify-center bg-slate-100 p-4">
-      <div className="bg-white p-10 rounded-[40px] shadow-2xl w-full max-w-sm border border-slate-200 animate-fade-in-up">
+      <div className="bg-white p-10 rounded-[40px] shadow-2xl w-full max-sm border border-slate-200 animate-fade-in-up">
         <h1 className="text-3xl font-black text-center text-indigo-700 italic uppercase tracking-tighter mb-8">Automatizacion</h1>
         <form onSubmit=${(e) => {
           e.preventDefault();
