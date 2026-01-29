@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import htm from 'htm';
 import { createClient } from '@supabase/supabase-js';
+import { jsPDF } from 'jspdf';
 
 const html = htm.bind(React.createElement);
 
@@ -12,7 +13,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // --- CONSTANTES ---
 const Role = { ADMIN: 'ADMIN', USER: 'USER' };
 const TaskStatus = { PENDING: 'PENDING', ACCEPTED: 'ACCEPTED', COMPLETED: 'COMPLETED' };
-const VERSION = "V1.5.3";
+const VERSION = "V1.6.0";
 
 // --- UTILS ---
 const formatDuration = (ms) => {
@@ -52,7 +53,7 @@ const ConfirmModal = ({ show, title, message, onConfirm, onCancel }) => {
   if (!show) return null;
   return html`
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
-      <div className="bg-white rounded-[40px] w-full max-w-sm shadow-2xl p-10 animate-fade-in-up">
+      <div className="bg-white rounded-[40px] w-full max-sm shadow-2xl p-10 animate-fade-in-up">
         <h2 className="text-xl font-black mb-4 uppercase text-slate-800">${title}</h2>
         <p className="text-sm text-slate-500 mb-8">${message}</p>
         <div className="flex gap-3">
@@ -273,6 +274,94 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
     if (!error) setSettings(data[0]);
   };
 
+  const exportPDF = () => {
+    const doc = new jsPDF();
+    const dateStr = new Date().toLocaleString();
+    
+    // Configuración estética del PDF
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(22);
+    doc.setTextColor(67, 56, 202); // Indigo 700
+    doc.text("Automatización Industrial", 105, 20, { align: "center" });
+    
+    doc.setFontSize(14);
+    doc.setTextColor(100);
+    doc.text("Reporte General de Control de Obras", 105, 30, { align: "center" });
+    
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Generado: ${dateStr} | Versión: ${VERSION}`, 105, 38, { align: "center" });
+
+    doc.setDrawColor(226, 232, 240);
+    doc.line(20, 45, 190, 45);
+
+    let y = 55;
+
+    tasks.forEach((t, index) => {
+      // Nueva página si se acaba el espacio
+      if (y > 250) {
+        doc.addPage();
+        y = 20;
+      }
+
+      const operario = users.find(u => u.id === t.assigned_to)?.username || 'No asignado';
+      const tiempoReal = t.status === TaskStatus.COMPLETED 
+        ? formatDuration(new Date(t.completed_at) - new Date(t.accepted_at))
+        : 'En curso';
+      
+      // Bloque de Tarea
+      doc.setFillColor(248, 250, 252);
+      doc.rect(20, y, 170, 35, 'F');
+      
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(30, 41, 59);
+      doc.text(`${index + 1}. ${t.title.toUpperCase()}`, 25, y + 8);
+      
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.text(`RESPONSABLE: ${operario.toUpperCase()}`, 25, y + 15);
+      doc.text(`ESTADO: ${t.status}`, 25, y + 21);
+      
+      doc.text(`TIEMPO ESTIMADO: ${t.estimated_time}HS`, 110, y + 15);
+      doc.text(`TIEMPO REAL: ${tiempoReal}`, 110, y + 21);
+      
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(t.efficiency >= 90 ? 16 : 185, t.efficiency >= 90 ? 185 : 28, t.efficiency >= 90 ? 129 : 28);
+      doc.text(`EFICIENCIA: ${t.efficiency}%`, 25, y + 29);
+      
+      y += 42;
+
+      // Bitácora de Notas
+      let notes = []; 
+      try { notes = JSON.parse(t.progress_notes || '[]'); } catch(e) {}
+      
+      if (notes.length > 0) {
+        doc.setFontSize(8);
+        doc.setTextColor(148, 163, 184);
+        doc.setFont("helvetica", "bold");
+        doc.text("BITÁCORA DE AVANCES:", 25, y - 5);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(71, 85, 105);
+        
+        notes.forEach(n => {
+          const splitNote = doc.splitTextToSize(`• [${new Date(n.date).toLocaleDateString()}] ${n.text}`, 160);
+          doc.text(splitNote, 25, y);
+          y += (splitNote.length * 4) + 2;
+          
+          if (y > 270) {
+            doc.addPage();
+            y = 20;
+          }
+        });
+      }
+      y += 10;
+    });
+
+    doc.save(`Reporte_Automatizacion_${new Date().toISOString().split('T')[0]}.pdf`);
+    notify('Reporte PDF Generado', 'success');
+  };
+
   const exportBackup = () => {
     const backup = { users, tasks, settings, export_date: new Date().toISOString(), version: VERSION };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
@@ -306,7 +395,7 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
 
   return html`
     <div className="space-y-6 animate-fade-in">
-      <div className="flex gap-2 p-1.5 bg-white border border-slate-200 rounded-2xl w-fit mx-auto sm:mx-0 sticky top-20 z-40 shadow-sm backdrop-blur-md">
+      <div className="flex flex-wrap gap-2 p-1.5 bg-white border border-slate-200 rounded-2xl w-fit mx-auto sm:mx-0 sticky top-20 z-40 shadow-sm backdrop-blur-md">
         <button onClick=${() => setView('TASKS')} className=${`px-5 py-2 rounded-xl text-xs font-black uppercase transition-all ${view === 'TASKS' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400'}`}>Obras</button>
         <button onClick=${() => setView('USERS')} className=${`px-5 py-2 rounded-xl text-xs font-black uppercase transition-all ${view === 'USERS' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400'}`}>Personal</button>
         <button onClick=${() => setView('SETTINGS')} className=${`px-5 py-2 rounded-xl text-xs font-black uppercase transition-all ${view === 'SETTINGS' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400'}`}>Ajustes</button>
@@ -314,9 +403,15 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
 
       ${view === 'TASKS' && html`
         <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
-          <div className="p-6 flex justify-between items-center border-b bg-slate-50/50">
+          <div className="p-6 flex flex-col sm:flex-row justify-between items-center gap-4 border-b bg-slate-50/50">
             <h2 className="font-black text-slate-800 uppercase italic">Control General</h2>
-            <button onClick=${() => { setTaskForm({title:'', description:'', assigned_to:'', estimated_time: 1}); setModalTask({show:true, mode:'create'}); }} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-indigo-100 active:scale-95 transition-all">+ Nueva Obra</button>
+            <div className="flex gap-2">
+              <button onClick=${exportPDF} className="bg-slate-800 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase shadow-lg active:scale-95 transition-all flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                Exportar PDF
+              </button>
+              <button onClick=${() => { setTaskForm({title:'', description:'', assigned_to:'', estimated_time: 1}); setModalTask({show:true, mode:'create'}); }} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-indigo-100 active:scale-95 transition-all">+ Nueva Obra</button>
+            </div>
           </div>
           <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
             ${tasks.map(t => {
