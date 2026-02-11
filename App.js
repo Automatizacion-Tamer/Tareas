@@ -19,7 +19,7 @@ const TaskStatus = {
   PAUSED: 'PAUSED',
   COMPLETED: 'COMPLETED' 
 };
-const VERSION = "V1.9.3";
+const VERSION = "V1.9.4";
 
 // --- UTILS ---
 
@@ -74,7 +74,6 @@ const renderTaskSection = (doc, task, users, startY) => {
 
   let y = startY;
 
-  // Header Seccional con ajuste de ancho para títulos largos
   doc.setFontSize(16); doc.setTextColor(63, 81, 181); doc.setFont(undefined, 'bold');
   const wrappedTitle = doc.splitTextToSize(`OBRA: ${task.title.toUpperCase()}`, 170);
   doc.text(wrappedTitle, 20, y);
@@ -91,7 +90,6 @@ const renderTaskSection = (doc, task, users, startY) => {
   doc.text(wrappedMeta2, 20, y);
   y += (wrappedMeta2.length * 5) + 5;
 
-  // Cuadro de métricas
   doc.setFillColor(245, 247, 250); doc.rect(20, y, 170, 25, 'F');
   doc.setFont(undefined, 'bold'); doc.setTextColor(0);
   doc.text(`Estimado: ${task.estimated_time} hs`, 25, y + 8);
@@ -101,7 +99,6 @@ const renderTaskSection = (doc, task, users, startY) => {
   doc.text(`EFICIENCIA: ${task.efficiency || 100}%`, 110, y + 17);
   y += 35;
 
-  // Pausas detalladas
   doc.setFontSize(10); doc.setTextColor(0); doc.setFont(undefined, 'bold');
   doc.text("HISTORIAL DE PAUSAS", 20, y);
   y += 6;
@@ -121,7 +118,6 @@ const renderTaskSection = (doc, task, users, startY) => {
     y += 3;
   }
 
-  // Bitácora
   if (y > 270) { doc.addPage(); y = 20; }
   doc.setFont(undefined, 'bold'); doc.setFontSize(10);
   doc.text("BITÁCORA DE AVANCES", 20, y);
@@ -150,7 +146,6 @@ const generateGlobalPDFReport = (tasks, users, settings) => {
   const doc = new jsPDF();
   let y = 25;
 
-  // Carátula
   doc.setFontSize(22); doc.setTextColor(63, 81, 181); doc.setFont(undefined, 'bold');
   doc.text("TAMER INDUSTRIAL S.A.", 20, y);
   y += 10;
@@ -162,7 +157,6 @@ const generateGlobalPDFReport = (tasks, users, settings) => {
   doc.line(20, y, 190, y);
   y += 15;
 
-  // Resumen Ejecutivo
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter(t => t.status === TaskStatus.COMPLETED).length;
   const avgEfficiency = tasks.length > 0 ? Math.round(tasks.reduce((acc, t) => acc + (t.efficiency || 100), 0) / tasks.length) : 100;
@@ -178,9 +172,7 @@ const generateGlobalPDFReport = (tasks, users, settings) => {
   doc.line(20, y, 190, y);
   y += 15;
 
-  // Iterar sobre tareas
   tasks.forEach((task, index) => {
-    // Si queda poco espacio para la siguiente tarea, pasar de página
     if (y > 220) { doc.addPage(); y = 25; }
     y = renderTaskSection(doc, task, users, y);
   });
@@ -484,27 +476,42 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
             ${tasks.map(t => {
               const realMs = (Number(t.accumulated_time_ms) || 0) + (t.status === TaskStatus.ACCEPTED ? getNetWorkingTimeMs(t.accepted_at, new Date().toISOString(), settings?.working_days) : 0);
               return html`
-                <div key=${t.id} className="p-6 border rounded-[32px] bg-white group hover:border-indigo-200 transition-all shadow-sm flex flex-col justify-between">
+                <div key=${t.id} className="p-6 border rounded-[32px] bg-white group hover:border-indigo-200 transition-all shadow-sm flex flex-col justify-between min-h-[320px]">
                   <div>
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="flex-1">
-                        <h3 className="font-black text-slate-800 text-sm uppercase leading-tight truncate pr-4">${t.title}</h3>
-                        <span className=${`text-[8px] font-black px-2 py-0.5 rounded uppercase inline-block mt-2 ${t.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-600' : 'bg-indigo-100 text-indigo-600'}`}>${t.status}</span>
-                      </div>
-                      <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all">
-                        <button onClick=${() => setModalNotes({show:true, task:t})} className="text-indigo-400 p-2 hover:bg-indigo-50 rounded-xl"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></button>
-                        <button onClick=${() => generatePDFReport(t, users, settings)} className="text-emerald-500 p-2 hover:bg-emerald-50 rounded-xl"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="3" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></button>
-                        <button onClick=${() => confirm('¿Borrar?', 'Se borrará permanentemente.', async () => { await supabase.from('tasks').delete().eq('id', t.id); setTasks(tasks.filter(x => x.id !== t.id)); notify('Tarea borrada', 'success'); })} className="text-red-300 p-2 hover:bg-red-50 rounded-xl"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                    <div className="flex flex-col gap-2 mb-4">
+                      <h3 className="font-black text-slate-800 text-sm uppercase leading-tight whitespace-normal break-words">${t.title}</h3>
+                      <div className="flex items-center gap-2">
+                        <span className=${`text-[8px] font-black px-2 py-0.5 rounded uppercase inline-block ${t.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-600' : 'bg-indigo-100 text-indigo-600'}`}>${t.status}</span>
                       </div>
                     </div>
+                    
+                    <!-- Métricas -->
                     <div className="grid grid-cols-3 gap-2 py-4 border-y border-slate-50 mb-4 bg-slate-50/50 rounded-2xl px-3">
                       <div className="flex flex-col"><span className="text-[8px] text-slate-400 font-black uppercase">Neto</span><span className="text-xs font-black text-indigo-600 font-mono">${formatDuration(realMs)}</span></div>
                       <div className="flex flex-col"><span className="text-[8px] text-slate-400 font-black uppercase">Efi.</span><span className="text-xs font-black text-emerald-600">${t.efficiency || 100}%</span></div>
                       <div className="flex flex-col"><span className="text-[8px] text-slate-400 font-black uppercase">Oper.</span><span className="text-[9px] font-black text-slate-700 truncate">${users.find(u => u.id === t.assigned_to)?.username || '---'}</span></div>
                     </div>
                   </div>
-                  ${t.status === TaskStatus.PAUSED && html`<button onClick=${() => resumeTask(t)} className="w-full bg-slate-900 text-white py-3 rounded-2xl text-[9px] font-black uppercase shadow-lg transition-all active:scale-95">Reanudar Jornada</button>`}
-                  ${t.status === TaskStatus.ACCEPTED && html`<p className="text-center text-[8px] font-black text-indigo-400 uppercase tracking-widest animate-pulse italic">Ejecución en Planta...</p>`}
+
+                  <!-- Área Inferior: Botones de Acción -->
+                  <div className="mt-auto pt-4 space-y-3">
+                    <div className="flex justify-between items-center gap-2 border-t border-slate-50 pt-3">
+                      <div className="flex gap-1.5">
+                        <button onClick=${() => setModalNotes({show:true, task:t})} className="text-indigo-600 bg-indigo-50 p-2.5 rounded-xl hover:bg-indigo-100 transition-colors" title="Ver Detalles">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                        </button>
+                        <button onClick=${() => generatePDFReport(t, users, settings)} className="text-emerald-600 bg-emerald-50 p-2.5 rounded-xl hover:bg-emerald-100 transition-colors" title="Exportar PDF">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="3" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                        </button>
+                      </div>
+                      <button onClick=${() => confirm('¿Borrar Tarea?', 'Esta acción no se puede deshacer.', async () => { await supabase.from('tasks').delete().eq('id', t.id); setTasks(tasks.filter(x => x.id !== t.id)); notify('Tarea eliminada', 'success'); })} className="text-red-500 bg-red-50 p-2.5 rounded-xl hover:bg-red-100 transition-colors" title="Eliminar">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      </button>
+                    </div>
+
+                    ${t.status === TaskStatus.PAUSED && html`<button onClick=${() => resumeTask(t)} className="w-full bg-slate-900 text-white py-3 rounded-2xl text-[9px] font-black uppercase shadow-lg transition-all active:scale-95">Reanudar Jornada</button>`}
+                    ${t.status === TaskStatus.ACCEPTED && html`<p className="text-center text-[8px] font-black text-indigo-400 uppercase tracking-widest animate-pulse italic py-1">Ejecución en Planta...</p>`}
+                  </div>
                 </div>
               `;
             })}
@@ -584,7 +591,7 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
       <!-- MODALES ADMIN -->
       ${modalTask.show && html`
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-[40px] w-full max-md shadow-2xl p-10 animate-fade-in-up">
+          <div className="bg-white rounded-[40px] w-full max-w-md shadow-2xl p-10 animate-fade-in-up">
             <h2 className="text-2xl font-black mb-8 uppercase text-indigo-700 italic tracking-tighter">${modalTask.mode === 'edit' ? 'Editar Orden' : 'Nueva Orden'}</h2>
             <form onSubmit=${saveTask} className="space-y-5">
               <input className="w-full bg-slate-50 p-4 rounded-2xl ring-1 ring-slate-100 outline-none font-bold text-sm" placeholder="Nombre de la Obra" value=${taskForm.title} onChange=${e => setTaskForm({...taskForm, title: e.target.value})} required />
