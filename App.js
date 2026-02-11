@@ -19,7 +19,7 @@ const TaskStatus = {
   PAUSED: 'PAUSED',
   COMPLETED: 'COMPLETED' 
 };
-const VERSION = "V1.9.5";
+const VERSION = "V1.9.6";
 
 // --- UTILS ---
 
@@ -582,6 +582,9 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
                       <div className="flex gap-1.5">
                         <button onClick=${() => setModalNotes({show:true, task:t})} className="text-indigo-600 bg-indigo-50 p-2.5 rounded-xl hover:bg-indigo-100 transition-colors" title="Ver Detalles">
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                        </button>
+                        <button onClick=${() => { setTaskForm({title:t.title, description:t.description, assigned_to:t.assigned_to, estimated_time:t.estimated_time}); setModalTask({show:true, mode:'edit', data:t}); }} className="text-amber-600 bg-amber-50 p-2.5 rounded-xl hover:bg-amber-100 transition-colors" title="Editar Tarea">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2.5" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                         </button>
                         <button onClick=${() => generatePDFReport(t, users, settings)} className="text-emerald-600 bg-emerald-50 p-2.5 rounded-xl hover:bg-emerald-100 transition-colors" title="Exportar PDF">
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="3" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
