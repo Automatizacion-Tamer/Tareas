@@ -19,7 +19,7 @@ const TaskStatus = {
   PAUSED: 'PAUSED',
   COMPLETED: 'COMPLETED' 
 };
-const VERSION = "CAF_V1.9.4";
+const VERSION = "V1.9.5";
 
 // --- UTILS ---
 
@@ -150,7 +150,7 @@ const generateGlobalPDFReport = (tasks, users, settings) => {
   doc.text("TAMER INDUSTRIAL S.A.", 20, y);
   y += 10;
   doc.setFontSize(11); doc.setTextColor(100); doc.setFont(undefined, 'normal');
-  doc.text("INFORME PRODUCCIÓN Y EFICIENCIA", 20, y);
+  doc.text("INFORME CONSOLIDADO DE PRODUCCIÓN Y EFICIENCIA", 20, y);
   y += 5;
   doc.text(`Fecha de Emisión: ${new Date().toLocaleString()}`, 20, y);
   y += 10;
@@ -196,11 +196,82 @@ const Toast = ({ message, type, onClose }) => {
   `;
 };
 
+// Componente Modal de Historial Reutilizable
+const TaskHistoryModal = ({ task, onClose }) => {
+  const pauses = useMemo(() => typeof task.pause_history === 'string' ? JSON.parse(task.pause_history) : (task.pause_history || []), [task]);
+  const notes = useMemo(() => typeof task.progress_notes === 'string' ? JSON.parse(task.progress_notes) : (task.progress_notes || []), [task]);
+
+  return html`
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[150] flex items-center justify-center p-4">
+      <div className="bg-white rounded-[40px] w-full max-w-2xl shadow-2xl p-8 md:p-10 animate-fade-in-up flex flex-col max-h-[90vh]">
+        <div className="flex justify-between items-start mb-8">
+           <div className="flex-1">
+             <h2 className="text-xl md:text-2xl font-black uppercase text-indigo-700 italic tracking-tighter leading-none mb-2">${task.title}</h2>
+             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Historial de producción y registros</p>
+           </div>
+           <button onClick=${onClose} className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:bg-slate-100"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="3" d="M6 18L18 6M6 6l12 12"/></svg></button>
+        </div>
+        
+        <div className="overflow-y-auto space-y-8 pr-4 custom-scrollbar">
+           <div>
+             <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><span className="w-1.5 h-1.5 bg-indigo-500 rounded-full"></span> Métricas de Trabajo</h4>
+             <div className="grid grid-cols-2 gap-4">
+               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-sm">
+                 <span className="text-[8px] font-black text-slate-400 block uppercase">Trabajo Acumulado</span>
+                 <span className="text-lg font-black text-indigo-600 font-mono">${formatDuration(Number(task.accumulated_time_ms))}</span>
+               </div>
+               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-sm text-center">
+                 <span className="text-[8px] font-black text-slate-400 block uppercase">Eficiencia actual</span>
+                 <span className="text-lg font-black text-emerald-600">${task.efficiency || 100}%</span>
+               </div>
+             </div>
+           </div>
+
+           <div>
+             <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><span className="w-1.5 h-1.5 bg-amber-500 rounded-full"></span> Registro de Pausas</h4>
+             <div className="space-y-3">
+               ${pauses.length === 0 ? html`<p className="text-xs text-slate-300 italic px-4">No se han registrado interrupciones.</p>` : pauses.map((p, i) => html`
+                 <div key=${i} className="bg-amber-50/50 p-4 rounded-2xl border border-amber-100">
+                   <div className="flex justify-between items-start mb-2">
+                     <span className="text-[10px] font-black text-amber-700 uppercase">Motivo: ${p.reason || 'No especificado'}</span>
+                     <span className="text-[9px] font-mono text-amber-500 font-black">${p.end ? formatDuration(new Date(p.end) - new Date(p.start)) : 'En curso'}</span>
+                   </div>
+                   <div className="flex flex-wrap gap-x-4 gap-y-1">
+                     <p className="text-[9px] text-slate-400 font-bold uppercase">Inicio: ${new Date(p.start).toLocaleString()}</p>
+                     ${p.end && html`<p className="text-[9px] text-slate-400 font-bold uppercase">Retoma: ${new Date(p.end).toLocaleString()}</p>`}
+                   </div>
+                 </div>
+               `)}
+             </div>
+           </div>
+
+           <div>
+             <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span> Bitácora de Avances</h4>
+             <div className="space-y-3">
+               ${notes.length === 0 ? html`<p className="text-xs text-slate-300 italic px-4">Sin avances reportados aún.</p>` : notes.slice().reverse().map((n, i) => html`
+                 <div key=${i} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 group">
+                   <p className="text-sm text-slate-700 leading-relaxed font-medium">"${n.text}"</p>
+                   <p className="text-[9px] text-slate-400 font-black mt-2 font-mono flex items-center gap-2 uppercase tracking-tighter">
+                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="3" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                     ${new Date(n.date).toLocaleString()}
+                   </p>
+                 </div>
+               `)}
+             </div>
+           </div>
+        </div>
+        <button onClick=${onClose} className="w-full mt-8 bg-slate-900 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-xl hover:bg-slate-800 transition-colors">Cerrar Historial</button>
+      </div>
+    </div>
+  `;
+};
+
 // --- DASHBOARDS ---
 
 const UserDashboard = ({ currentUser, tasks = [], setTasks, settings, notify }) => {
   const [activeNote, setActiveNote] = useState({});
   const [pauseModal, setPauseModal] = useState({ show: false, task: null, reason: '' });
+  const [historyModal, setHistoryModal] = useState({ show: false, task: null });
   const [now, setNow] = useState(new Date());
 
   useEffect(() => {
@@ -250,9 +321,14 @@ const UserDashboard = ({ currentUser, tasks = [], setTasks, settings, notify }) 
 
   return html`
     <div className="max-w-xl mx-auto space-y-6 animate-fade-in">
-      <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
-        <h2 className="text-xl font-black text-slate-800 italic uppercase">Terminal Planta</h2>
-        <p className="text-[10px] text-indigo-500 font-black tracking-widest uppercase mt-1">OPERARIO: ${currentUser?.username.toUpperCase()}</p>
+      <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 flex justify-between items-center">
+        <div>
+          <h2 className="text-xl font-black text-slate-800 italic uppercase">Terminal Planta</h2>
+          <p className="text-[10px] text-indigo-500 font-black tracking-widest uppercase mt-1">OPERARIO: ${currentUser?.username.toUpperCase()}</p>
+        </div>
+        <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
+           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="3" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+        </div>
       </div>
 
       ${myTasks.length === 0 ? html`<div className="p-20 text-center bg-white rounded-[40px] border-2 border-dashed border-slate-200 text-slate-300 font-black uppercase text-xs">Sin órdenes de trabajo</div>` : myTasks.map(t => {
@@ -260,43 +336,48 @@ const UserDashboard = ({ currentUser, tasks = [], setTasks, settings, notify }) 
         const totalRealMs = (Number(t.accumulated_time_ms) || 0) + currentWorkMs;
 
         return html`
-          <div key=${t.id} className="bg-white rounded-[32px] shadow-sm border border-slate-200 overflow-hidden mb-6">
-            <div className="p-6 border-b border-slate-50 flex justify-between items-start">
+          <div key=${t.id} className="bg-white rounded-[32px] shadow-sm border border-slate-200 overflow-hidden mb-6 flex flex-col">
+            <div className="p-6 border-b border-slate-50 flex justify-between items-start gap-4">
               <div className="flex-1">
-                <h3 className="font-black text-slate-800 text-lg uppercase">${t.title}</h3>
-                <div className="flex gap-2 mt-2">
-                   <span className="bg-indigo-50 text-[9px] font-black text-indigo-600 px-2 py-1 rounded border border-indigo-100">TIEMPO: ${formatDuration(totalRealMs)}</span>
-                   <span className="bg-slate-100 text-[9px] font-black text-slate-500 px-2 py-1 rounded">EST: ${t.estimated_time}HS</span>
+                <h3 className="font-black text-slate-800 text-lg uppercase leading-tight">${t.title}</h3>
+                <div className="flex flex-wrap gap-2 mt-2">
+                   <span className="bg-indigo-50 text-[9px] font-black text-indigo-600 px-2.5 py-1 rounded-lg border border-indigo-100 font-mono">NETO: ${formatDuration(totalRealMs)}</span>
+                   <span className="bg-slate-100 text-[9px] font-black text-slate-500 px-2.5 py-1 rounded-lg">META: ${t.estimated_time}HS</span>
                 </div>
               </div>
-              <span className=${`text-[9px] font-black px-3 py-1 rounded-full uppercase ${t.status === TaskStatus.COMPLETED ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>${t.status}</span>
+              <div className="flex flex-col items-end gap-2">
+                <button onClick=${() => setHistoryModal({ show: true, task: t })} className="p-2.5 bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-colors" title="Ver Bitácora">
+                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="3" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                </button>
+                <span className=${`text-[8px] font-black px-3 py-1 rounded-full uppercase ${t.status === TaskStatus.COMPLETED ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>${t.status}</span>
+              </div>
             </div>
 
             <div className="p-6 space-y-6">
                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  <span className="text-[8px] font-black text-slate-400 block uppercase mb-1">Descripción técnica</span>
+                  <span className="text-[8px] font-black text-slate-400 block uppercase mb-1">Especificación</span>
                   <p className="text-sm text-slate-600 italic leading-relaxed">"${t.description}"</p>
                </div>
                
                <div className="space-y-4">
-                 ${t.status === TaskStatus.PENDING && html`<button onClick=${() => updateStatus(t, TaskStatus.ACCEPTED, { accepted_at: new Date().toISOString() })} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase text-xs shadow-xl shadow-indigo-100">Iniciar Tarea</button>`}
+                 ${t.status === TaskStatus.PENDING && html`<button onClick=${() => updateStatus(t, TaskStatus.ACCEPTED, { accepted_at: new Date().toISOString() })} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase text-xs shadow-xl shadow-indigo-100 active:scale-95 transition-all">Iniciar Jornada</button>`}
                  
                  ${t.status === TaskStatus.ACCEPTED && html`
-                   <div className="space-y-4">
+                   <div className="space-y-4 animate-fade-in">
                      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
-                        <textarea placeholder="¿Qué avances lograste?..." value=${activeNote[t.id] || ''} onChange=${e => setActiveNote({...activeNote, [t.id]: e.target.value})} className="w-full p-3 bg-slate-50 border-0 rounded-xl text-sm min-h-[80px] outline-none" />
-                        <button onClick=${() => saveNote(t.id)} className="w-full bg-slate-800 text-white py-3 rounded-xl text-[10px] font-black uppercase">Reportar Avance</button>
+                        <textarea placeholder="¿Qué avances lograste?..." value=${activeNote[t.id] || ''} onChange=${e => setActiveNote({...activeNote, [t.id]: e.target.value})} className="w-full p-4 bg-slate-50 border-0 rounded-xl text-sm min-h-[100px] outline-none focus:ring-2 focus:ring-indigo-100 transition-all" />
+                        <button onClick=${() => saveNote(t.id)} className="w-full bg-slate-800 text-white py-3.5 rounded-xl text-[10px] font-black uppercase shadow-lg active:scale-95 transition-all">Subir Avance a Bitácora</button>
                      </div>
                      <div className="grid grid-cols-2 gap-3">
-                        <button onClick=${() => setPauseModal({ show: true, task: t, reason: '' })} className="bg-amber-500 text-white py-4 rounded-2xl font-black uppercase text-[10px] shadow-lg shadow-amber-100">Solicitar Pausa</button>
-                        <button onClick=${() => updateStatus(t, TaskStatus.COMPLETED)} className="bg-emerald-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] shadow-lg shadow-emerald-100">Finalizar Obra</button>
+                        <button onClick=${() => setPauseModal({ show: true, task: t, reason: '' })} className="bg-amber-500 text-white py-4 rounded-2xl font-black uppercase text-[10px] shadow-lg shadow-amber-100 active:scale-95 transition-all">Pausar Obra</button>
+                        <button onClick=${() => updateStatus(t, TaskStatus.COMPLETED)} className="bg-emerald-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] shadow-lg shadow-emerald-100 active:scale-95 transition-all">Cerrar Orden</button>
                      </div>
                    </div>
                  `}
 
-                 ${t.status === TaskStatus.PAUSE_REQUESTED && html`<div className="p-8 bg-amber-50 rounded-2xl border border-amber-100 text-center animate-pulse"><span className="font-black text-amber-600 uppercase text-[10px] tracking-widest block">Esperando Aprobación de Pausa...</span></div>`}
-                 ${t.status === TaskStatus.PAUSED && html`<div className="p-8 bg-red-50 rounded-2xl border border-red-100 text-center"><span className="font-black text-red-600 uppercase text-[10px] tracking-widest block italic">OBRA EN PAUSA POR ADMINISTRACIÓN</span></div>`}
-                 ${t.status === TaskStatus.COMPLETED && html`<div className="p-10 bg-emerald-50 rounded-[40px] text-center border border-emerald-100 border-dashed"><span className="block font-black text-4xl text-emerald-600">${t.efficiency || 100}%</span><span className="text-[10px] text-emerald-400 font-black uppercase mt-2 block tracking-widest">Eficiencia Lograda</span></div>`}
+                 ${t.status === TaskStatus.PAUSE_REQUESTED && html`<div className="p-10 bg-amber-50 rounded-3xl border border-amber-100 text-center animate-pulse"><span className="font-black text-amber-600 uppercase text-[10px] tracking-widest block">Solicitud de Pausa Enviada</span><p className="text-[9px] text-amber-400 mt-2">Esperando respuesta de administración...</p></div>`}
+                 ${t.status === TaskStatus.PAUSED && html`<div className="p-10 bg-red-50 rounded-3xl border border-red-100 text-center"><span className="font-black text-red-600 uppercase text-[10px] tracking-widest block italic">OBRA EN PAUSA POR ADMINISTRACIÓN</span><p className="text-[9px] text-red-400 mt-2">Consulte con su supervisor para retomar.</p></div>`}
+                 ${t.status === TaskStatus.COMPLETED && html`<div className="p-10 bg-emerald-50 rounded-[40px] text-center border border-emerald-100 border-dashed"><span className="block font-black text-5xl text-emerald-600">${t.efficiency || 100}%</span><span className="text-[10px] text-emerald-400 font-black uppercase mt-2 block tracking-widest">Eficiencia Lograda</span></div>`}
                </div>
             </div>
           </div>
@@ -307,15 +388,19 @@ const UserDashboard = ({ currentUser, tasks = [], setTasks, settings, notify }) 
       ${pauseModal.show && html`
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[150] flex items-center justify-center p-4">
           <div className="bg-white rounded-[40px] w-full max-w-sm shadow-2xl p-10 animate-fade-in-up">
-            <h2 className="text-xl font-black mb-6 uppercase text-amber-600 italic tracking-tighter">Motivo de la Pausa</h2>
-            <textarea placeholder="Ej: Falta de material, almuerzo, problemas técnicos..." value=${pauseModal.reason} onChange=${e => setPauseModal({...pauseModal, reason: e.target.value})} className="w-full p-4 bg-slate-50 border-0 ring-1 ring-slate-100 rounded-2xl text-sm min-h-[120px] outline-none mb-6" />
+            <h2 className="text-xl font-black mb-6 uppercase text-amber-600 italic tracking-tighter">Reportar Pausa</h2>
+            <p className="text-[10px] text-slate-400 font-bold uppercase mb-4">Indique el motivo de la detención:</p>
+            <textarea placeholder="Ej: Falta de material, almuerzo, problemas técnicos..." value=${pauseModal.reason} onChange=${e => setPauseModal({...pauseModal, reason: e.target.value})} className="w-full p-4 bg-slate-50 border-0 ring-1 ring-slate-100 rounded-2xl text-sm min-h-[120px] outline-none mb-6 focus:ring-2 focus:ring-amber-200 transition-all" />
             <div className="flex gap-3">
               <button onClick=${() => setPauseModal({show:false, task:null, reason:''})} className="flex-1 bg-slate-100 py-4 rounded-2xl font-black text-[10px] uppercase text-slate-400">Cancelar</button>
-              <button disabled=${!pauseModal.reason.trim()} onClick=${() => updateStatus(pauseModal.task, TaskStatus.PAUSE_REQUESTED, { current_pause_reason: pauseModal.reason })} className="flex-1 bg-amber-500 text-white py-4 rounded-2xl font-black text-[10px] uppercase shadow-lg disabled:opacity-30">Enviar Solicitud</button>
+              <button disabled=${!pauseModal.reason.trim()} onClick=${() => updateStatus(pauseModal.task, TaskStatus.PAUSE_REQUESTED, { current_pause_reason: pauseModal.reason })} className="flex-1 bg-amber-500 text-white py-4 rounded-2xl font-black text-[10px] uppercase shadow-lg disabled:opacity-30">Confirmar</button>
             </div>
           </div>
         </div>
       `}
+
+      <!-- MODAL HISTORIAL USUARIO -->
+      ${historyModal.show && html`<${TaskHistoryModal} task=${historyModal.task} onClose=${() => setHistoryModal({ show: false, task: null })} />`}
     </div>
   `;
 };
@@ -441,8 +526,8 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
                    <p className="text-xs italic">"${t.current_pause_reason || 'Sin motivo reportado'}"</p>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick=${() => managePause(t, true)} className="flex-1 bg-white text-amber-600 py-3 rounded-xl text-[10px] font-black uppercase">Aprobar</button>
-                  <button onClick=${() => managePause(t, false)} className="flex-1 bg-black/30 text-white py-3 rounded-xl text-[10px] font-black uppercase">Rechazar</button>
+                  <button onClick=${() => managePause(t, true)} className="flex-1 bg-white text-amber-600 py-3 rounded-xl text-[10px] font-black uppercase hover:bg-slate-50 transition-colors">Aprobar</button>
+                  <button onClick=${() => managePause(t, false)} className="flex-1 bg-black/30 text-white py-3 rounded-xl text-[10px] font-black uppercase hover:bg-black/50 transition-colors">Rechazar</button>
                 </div>
               </div>
             `)}
@@ -470,7 +555,7 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
         <div className="bg-white rounded-[40px] border border-slate-200 overflow-hidden shadow-sm">
           <div className="p-8 flex justify-between items-center border-b bg-slate-50/30">
             <h2 className="font-black text-slate-800 uppercase italic text-xl">Monitor de Obras</h2>
-            <button onClick=${() => { setTaskForm({title:'', description:'', assigned_to:'', estimated_time:1}); setModalTask({show:true, mode:'create'}); }} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase shadow-xl">+ Nueva Orden</button>
+            <button onClick=${() => { setTaskForm({title:'', description:'', assigned_to:'', estimated_time:1}); setModalTask({show:true, mode:'create'}); }} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase shadow-xl hover:bg-indigo-700 transition-colors">+ Nueva Orden</button>
           </div>
           <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
             ${tasks.map(t => {
@@ -485,7 +570,6 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
                       </div>
                     </div>
                     
-                    <!-- Métricas -->
                     <div className="grid grid-cols-3 gap-2 py-4 border-y border-slate-50 mb-4 bg-slate-50/50 rounded-2xl px-3">
                       <div className="flex flex-col"><span className="text-[8px] text-slate-400 font-black uppercase">Neto</span><span className="text-xs font-black text-indigo-600 font-mono">${formatDuration(realMs)}</span></div>
                       <div className="flex flex-col"><span className="text-[8px] text-slate-400 font-black uppercase">Efi.</span><span className="text-xs font-black text-emerald-600">${t.efficiency || 100}%</span></div>
@@ -493,7 +577,6 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
                     </div>
                   </div>
 
-                  <!-- Área Inferior: Botones de Acción -->
                   <div className="mt-auto pt-4 space-y-3">
                     <div className="flex justify-between items-center gap-2 border-t border-slate-50 pt-3">
                       <div className="flex gap-1.5">
@@ -509,7 +592,7 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
                       </button>
                     </div>
 
-                    ${t.status === TaskStatus.PAUSED && html`<button onClick=${() => resumeTask(t)} className="w-full bg-slate-900 text-white py-3 rounded-2xl text-[9px] font-black uppercase shadow-lg transition-all active:scale-95">Reanudar Tarea</button>`}
+                    ${t.status === TaskStatus.PAUSED && html`<button onClick=${() => resumeTask(t)} className="w-full bg-slate-900 text-white py-3 rounded-2xl text-[9px] font-black uppercase shadow-lg active:scale-95 transition-all">Reanudar Tarea</button>`}
                     ${t.status === TaskStatus.ACCEPTED && html`<p className="text-center text-[8px] font-black text-indigo-400 uppercase tracking-widest animate-pulse italic py-1">Tarea En Ejecucion...</p>`}
                   </div>
                 </div>
@@ -524,7 +607,7 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
         <div className="bg-white rounded-[40px] border border-slate-200 overflow-hidden shadow-sm">
           <div className="p-8 flex justify-between items-center border-b bg-slate-50/30">
              <h2 className="font-black text-slate-800 uppercase italic text-xl">Gestión de Personal</h2>
-             <button onClick=${() => { setUserForm({username:'', password:'', role: Role.USER}); setModalUser({show:true, mode:'create'}); }} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase shadow-xl">+ Nuevo Operario</button>
+             <button onClick=${() => { setUserForm({username:'', password:'', role: Role.USER}); setModalUser({show:true, mode:'create'}); }} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase shadow-xl hover:bg-indigo-700 transition-colors">+ Nuevo Operario</button>
           </div>
           <div className="p-8 overflow-x-auto">
             <table className="w-full text-left">
@@ -583,7 +666,7 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
                 })}
               </div>
             </div>
-            <button onClick=${saveSettings} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all">Guardar Configuración Global</button>
+            <button onClick=${saveSettings} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all hover:bg-indigo-700">Guardar Configuración Global</button>
           </div>
         </div>
       `}
@@ -592,7 +675,7 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
       ${modalTask.show && html`
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-[40px] w-full max-w-md shadow-2xl p-10 animate-fade-in-up">
-            <h2 className="text-2xl font-black mb-8 uppercase text-indigo-700 italic tracking-tighter">${modalTask.mode === 'edit' ? 'Editar Orden' : 'Nueva Orden'}</h2>
+            <h2 className="text-2xl font-black mb-8 uppercase text-indigo-700 italic tracking-tighter leading-none">${modalTask.mode === 'edit' ? 'Editar Orden' : 'Nueva Orden'}</h2>
             <form onSubmit=${saveTask} className="space-y-5">
               <input className="w-full bg-slate-50 p-4 rounded-2xl ring-1 ring-slate-100 outline-none font-bold text-sm" placeholder="Nombre de la Obra" value=${taskForm.title} onChange=${e => setTaskForm({...taskForm, title: e.target.value})} required />
               <div className="grid grid-cols-2 gap-4">
@@ -602,10 +685,10 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
                 </select>
                 <input type="number" step="0.5" className="w-full bg-slate-50 p-4 rounded-2xl ring-1 ring-slate-100 outline-none font-bold" placeholder="Horas Est." value=${taskForm.estimated_time} onChange=${e => setTaskForm({...taskForm, estimated_time: parseFloat(e.target.value)})} required />
               </div>
-              <textarea className="w-full bg-slate-50 p-4 rounded-2xl ring-1 ring-slate-100 outline-none min-h-[120px] text-sm leading-relaxed" placeholder="Especificaciones y requerimientos técnicos..." value=${taskForm.description} onChange=${e => setTaskForm({...taskForm, description: e.target.value})} required />
+              <textarea className="w-full bg-slate-50 p-4 rounded-2xl ring-1 ring-slate-100 outline-none min-h-[120px] text-sm leading-relaxed" placeholder="Especificaciones técnicas..." value=${taskForm.description} onChange=${e => setTaskForm({...taskForm, description: e.target.value})} required />
               <div className="flex gap-3 pt-6">
                 <button type="button" onClick=${() => setModalTask({show:false})} className="flex-1 bg-slate-100 py-4 rounded-2xl font-black text-xs uppercase text-slate-400">Cerrar</button>
-                <button type="submit" className="flex-1 bg-indigo-600 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-xl">Guardar</button>
+                <button type="submit" className="flex-1 bg-indigo-600 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-xl hover:bg-indigo-700 transition-colors">Guardar</button>
               </div>
             </form>
           </div>
@@ -615,7 +698,7 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
       ${modalUser.show && html`
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-[40px] w-full max-w-sm shadow-2xl p-10 animate-fade-in-up">
-            <h2 className="text-2xl font-black mb-8 uppercase text-indigo-700 italic tracking-tighter">${modalUser.mode === 'edit' ? 'Editar Perfil' : 'Nuevo Operario'}</h2>
+            <h2 className="text-2xl font-black mb-8 uppercase text-indigo-700 italic tracking-tighter leading-none">${modalUser.mode === 'edit' ? 'Editar Perfil' : 'Nuevo Operario'}</h2>
             <form onSubmit=${saveUser} className="space-y-5">
               <input className="w-full bg-slate-50 p-4 rounded-2xl ring-1 ring-slate-100 outline-none font-bold" placeholder="Identificador / Usuario" value=${userForm.username} onChange=${e => setUserForm({...userForm, username: e.target.value.toLowerCase()})} required />
               <input type="password" className="w-full bg-slate-50 p-4 rounded-2xl ring-1 ring-slate-100 outline-none font-bold" placeholder="Contraseña segura" value=${userForm.password} onChange=${e => setUserForm({...userForm, password: e.target.value})} required />
@@ -625,76 +708,14 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
               </select>
               <div className="flex gap-3 pt-6">
                 <button type="button" onClick=${() => setModalUser({show:false})} className="flex-1 bg-slate-100 py-4 rounded-2xl font-black text-xs uppercase text-slate-400">Cerrar</button>
-                <button type="submit" className="flex-1 bg-indigo-600 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-xl">Guardar</button>
+                <button type="submit" className="flex-1 bg-indigo-600 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-xl hover:bg-indigo-700 transition-colors">Guardar</button>
               </div>
             </form>
           </div>
         </div>
       `}
 
-      ${modalNotes.show && html`
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-[40px] w-full max-w-2xl shadow-2xl p-10 animate-fade-in-up flex flex-col max-h-[90vh]">
-            <div className="flex justify-between items-start mb-8">
-               <h2 className="text-2xl font-black uppercase text-indigo-700 italic tracking-tighter">Detalles de Obra</h2>
-               <button onClick=${() => generatePDFReport(modalNotes.task, users, settings)} className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase shadow-lg">Descargar Reporte</button>
-            </div>
-            
-            <div className="overflow-y-auto space-y-8 pr-4 custom-scrollbar">
-               <div>
-                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Métricas de Tiempo</h4>
-                 <div className="grid grid-cols-2 gap-4">
-                   <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                     <span className="text-[8px] font-black text-slate-400 block uppercase">Trabajo Neto</span>
-                     <span className="text-lg font-black text-indigo-600">${formatDuration(Number(modalNotes.task.accumulated_time_ms))}</span>
-                   </div>
-                   <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                     <span className="text-[8px] font-black text-slate-400 block uppercase">Tiempo Estimado</span>
-                     <span className="text-lg font-black text-slate-800">${modalNotes.task.estimated_time}HS</span>
-                   </div>
-                 </div>
-               </div>
-
-               <div>
-                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Historial Detallado de Pausas</h4>
-                 <div className="space-y-3">
-                   ${(() => {
-                     const pauses = typeof modalNotes.task.pause_history === 'string' ? JSON.parse(modalNotes.task.pause_history) : (modalNotes.task.pause_history || []);
-                     if (pauses.length === 0) return html`<p className="text-xs text-slate-300 italic">No se registraron pausas.</p>`;
-                     return pauses.map((p, i) => html`
-                       <div key=${i} className="bg-amber-50/50 p-4 rounded-2xl border border-amber-100">
-                         <div className="flex justify-between items-start mb-2">
-                           <span className="text-[10px] font-black text-amber-700 uppercase">Motivo: ${p.reason}</span>
-                           <span className="text-[9px] font-mono text-amber-500">${p.end ? formatDuration(new Date(p.end) - new Date(p.start)) : 'En curso'}</span>
-                         </div>
-                         <p className="text-[9px] text-slate-400 font-bold uppercase">Inicio: ${new Date(p.start).toLocaleString()}</p>
-                         ${p.end && html`<p className="text-[9px] text-slate-400 font-bold uppercase">Retoma: ${new Date(p.end).toLocaleString()}</p>`}
-                       </div>
-                     `);
-                   })()}
-                 </div>
-               </div>
-
-               <div>
-                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Bitácora de Avances</h4>
-                 <div className="space-y-3">
-                   ${(() => {
-                     const notes = typeof modalNotes.task.progress_notes === 'string' ? JSON.parse(modalNotes.task.progress_notes) : (modalNotes.task.progress_notes || []);
-                     if (notes.length === 0) return html`<p className="text-xs text-slate-300 italic">Sin avances reportados.</p>`;
-                     return notes.map((n, i) => html`
-                       <div key=${i} className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                         <p className="text-sm text-slate-700 leading-tight">${n.text}</p>
-                         <p className="text-[9px] text-slate-400 font-black mt-2 font-mono">${new Date(n.date).toLocaleString()}</p>
-                       </div>
-                     `);
-                   })()}
-                 </div>
-               </div>
-            </div>
-            <button onClick=${() => setModalNotes({show:false})} className="w-full mt-8 bg-slate-900 text-white py-4 rounded-2xl font-black text-xs uppercase">Cerrar</button>
-          </div>
-        </div>
-      `}
+      ${modalNotes.show && html`<${TaskHistoryModal} task=${modalNotes.task} onClose=${() => setModalNotes({show:false})} />`}
     </div>
   `;
 };
@@ -748,7 +769,7 @@ const App = () => {
         }} className="space-y-4">
           <input name="u" className="w-full p-4 bg-slate-50 ring-1 ring-slate-200 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-indigo-600 transition-all text-sm" placeholder="Usuario de Planta" required />
           <input name="p" type="password" className="w-full p-4 bg-slate-50 ring-1 ring-slate-200 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-indigo-600 transition-all text-sm" placeholder="Clave" required />
-          <button type="submit" className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase shadow-xl shadow-indigo-100 active:scale-95 transition-all mt-6">Ingresar</button>
+          <button type="submit" className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase shadow-xl shadow-indigo-100 active:scale-95 transition-all mt-6 hover:bg-indigo-700">Ingresar</button>
         </form>
       </div>
     </div>
@@ -776,13 +797,13 @@ const App = () => {
         ${currentUser.role === Role.ADMIN ? html`<${AdminDashboard} users=${users} setUsers=${setUsers} tasks=${tasks} setTasks=${setTasks} settings=${settings} setSettings=${setSettings} notify=${notify} confirm=${confirm} />` : html`<${UserDashboard} currentUser=${currentUser} tasks=${tasks} setTasks=${setTasks} settings=${settings} notify=${notify} />`}
       </main>
       <footer className="fixed bottom-0 left-0 right-0 p-4 bg-white/50 backdrop-blur-md border-t border-slate-100 flex justify-between items-center px-10 z-[60]">
-        <div className="text-[8px] text-slate-300 font-black uppercase tracking-widest italic">Sistema Control de Eficiencia</div>
+        <div className="text-[8px] text-slate-300 font-black uppercase tracking-widest italic leading-none">Industrial efficiency and productivity control system</div>
         <div className="text-[9px] text-indigo-400 font-black bg-indigo-50 px-3 py-1 rounded-full uppercase border border-indigo-100">${VERSION}</div>
       </footer>
       ${toast && html`<${Toast} message=${toast.message} type=${toast.type} onClose=${() => setToast(null)} />`}
       <div className=${confirmation.show ? 'fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[150] flex items-center justify-center p-4' : 'hidden'}>
         <div className="bg-white rounded-[40px] w-full max-w-sm shadow-2xl p-10 animate-fade-in-up">
-          <h2 className="text-xl font-black mb-4 uppercase text-slate-800 italic tracking-tighter">${confirmation.title}</h2>
+          <h2 className="text-xl font-black mb-4 uppercase text-slate-800 italic tracking-tighter leading-none">${confirmation.title}</h2>
           <p className="text-sm text-slate-500 mb-8 leading-relaxed">${confirmation.message}</p>
           <div className="flex gap-3">
             <button onClick=${() => setConfirmation(c => ({...c, show: false}))} className="flex-1 bg-slate-100 py-4 rounded-2xl font-black text-[10px] uppercase text-slate-400">Cancelar</button>
