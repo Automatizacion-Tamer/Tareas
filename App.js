@@ -19,7 +19,7 @@ const TaskStatus = {
   PAUSED: 'PAUSED',
   COMPLETED: 'COMPLETED' 
 };
-const VERSION = "V1.9.4";
+const VERSION = "CAF_V1.9.4";
 
 // --- UTILS ---
 
@@ -150,7 +150,7 @@ const generateGlobalPDFReport = (tasks, users, settings) => {
   doc.text("TAMER INDUSTRIAL S.A.", 20, y);
   y += 10;
   doc.setFontSize(11); doc.setTextColor(100); doc.setFont(undefined, 'normal');
-  doc.text("INFORME CONSOLIDADO DE PRODUCCIÓN Y EFICIENCIA", 20, y);
+  doc.text("INFORME PRODUCCIÓN Y EFICIENCIA", 20, y);
   y += 5;
   doc.text(`Fecha de Emisión: ${new Date().toLocaleString()}`, 20, y);
   y += 10;
@@ -279,7 +279,7 @@ const UserDashboard = ({ currentUser, tasks = [], setTasks, settings, notify }) 
                </div>
                
                <div className="space-y-4">
-                 ${t.status === TaskStatus.PENDING && html`<button onClick=${() => updateStatus(t, TaskStatus.ACCEPTED, { accepted_at: new Date().toISOString() })} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase text-xs shadow-xl shadow-indigo-100">Iniciar Jornada</button>`}
+                 ${t.status === TaskStatus.PENDING && html`<button onClick=${() => updateStatus(t, TaskStatus.ACCEPTED, { accepted_at: new Date().toISOString() })} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase text-xs shadow-xl shadow-indigo-100">Iniciar Tarea</button>`}
                  
                  ${t.status === TaskStatus.ACCEPTED && html`
                    <div className="space-y-4">
@@ -509,8 +509,8 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
                       </button>
                     </div>
 
-                    ${t.status === TaskStatus.PAUSED && html`<button onClick=${() => resumeTask(t)} className="w-full bg-slate-900 text-white py-3 rounded-2xl text-[9px] font-black uppercase shadow-lg transition-all active:scale-95">Reanudar Jornada</button>`}
-                    ${t.status === TaskStatus.ACCEPTED && html`<p className="text-center text-[8px] font-black text-indigo-400 uppercase tracking-widest animate-pulse italic py-1">Ejecución en Planta...</p>`}
+                    ${t.status === TaskStatus.PAUSED && html`<button onClick=${() => resumeTask(t)} className="w-full bg-slate-900 text-white py-3 rounded-2xl text-[9px] font-black uppercase shadow-lg transition-all active:scale-95">Reanudar Tarea</button>`}
+                    ${t.status === TaskStatus.ACCEPTED && html`<p className="text-center text-[8px] font-black text-indigo-400 uppercase tracking-widest animate-pulse italic py-1">Tarea En Ejecucion...</p>`}
                   </div>
                 </div>
               `;
@@ -736,8 +736,8 @@ const App = () => {
   if (!currentUser) return html`
     <div className="h-screen flex items-center justify-center bg-slate-100 p-4">
       <div className="bg-white p-12 rounded-[50px] shadow-2xl w-full max-w-sm border border-slate-200 animate-fade-in-up">
-        <h1 className="text-4xl font-black text-center text-indigo-700 italic uppercase mb-2 tracking-tighter leading-none">TAMER IND.</h1>
-        <p className="text-[9px] text-center text-slate-400 font-black uppercase tracking-[0.3em] mb-12">Industrial Control System</p>
+        <h1 className="text-4xl font-black text-center text-indigo-700 italic uppercase mb-2 tracking-tighter leading-none">TAMER IND. S.A.</h1>
+        <p className="text-[9px] text-center text-slate-400 font-black uppercase tracking-[0.3em] mb-12">Sistema Control y Monitoreo</p>
         <form onSubmit=${(e) => {
           e.preventDefault();
           const user = users.find(x => x.username.toLowerCase() === e.target.u.value.toLowerCase() && x.password === e.target.p.value);
@@ -760,8 +760,8 @@ const App = () => {
         <div className="flex items-center gap-4">
            <div className="w-12 h-12 bg-indigo-700 rounded-2xl flex items-center justify-center text-white font-black italic shadow-xl text-xl">T</div>
            <div className="hidden sm:block">
-              <h1 className="text-xl font-black text-indigo-900 italic uppercase tracking-tighter leading-none">TAMER</h1>
-              <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-1">Control Industrial</p>
+              <h1 className="text-xl font-black text-indigo-900 italic uppercase tracking-tighter leading-none">TAMER INDUSTRIAL S.A.</h1>
+              <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-1">Automatizacion</p>
            </div>
         </div>
         <div className="flex items-center gap-6">
@@ -776,7 +776,7 @@ const App = () => {
         ${currentUser.role === Role.ADMIN ? html`<${AdminDashboard} users=${users} setUsers=${setUsers} tasks=${tasks} setTasks=${setTasks} settings=${settings} setSettings=${setSettings} notify=${notify} confirm=${confirm} />` : html`<${UserDashboard} currentUser=${currentUser} tasks=${tasks} setTasks=${setTasks} settings=${settings} notify=${notify} />`}
       </main>
       <footer className="fixed bottom-0 left-0 right-0 p-4 bg-white/50 backdrop-blur-md border-t border-slate-100 flex justify-between items-center px-10 z-[60]">
-        <div className="text-[8px] text-slate-300 font-black uppercase tracking-widest italic">Industrial efficiency data management system</div>
+        <div className="text-[8px] text-slate-300 font-black uppercase tracking-widest italic">Sistema Control de Eficiencia</div>
         <div className="text-[9px] text-indigo-400 font-black bg-indigo-50 px-3 py-1 rounded-full uppercase border border-indigo-100">${VERSION}</div>
       </footer>
       ${toast && html`<${Toast} message=${toast.message} type=${toast.type} onClose=${() => setToast(null)} />`}
